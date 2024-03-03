@@ -1,0 +1,114 @@
+Resources:
+  # VPC
+  MaverickVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.100.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-vpc
+
+  # Internet Gatway
+  MaverickInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    DependsOn: MaverickVPC
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-igw
+
+  # Attach Internet Gateway
+  MaverickAttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref MaverickVPC
+      InternetGatewayId: !Ref MaverickInternetGateway
+
+  # Public Subnet
+  MaverickPublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.100.1.0/24
+      VpcId: !Ref MaverickVPC
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-public-subnet
+
+  # Public Route Table
+  MaverickPublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MaverickVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-public-route-table
+
+  # Connecting Public Route Table to Internet Gateway
+  MaverickPublicRouteToInternetGateway:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref MaverickPublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref MaverickInternetGateway
+
+  # Public Route Association
+  MaverickPublicRouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref MaverickPublicSubnet
+      RouteTableId: !Ref MaverickPublicRouteTable
+
+  # Public Security Group
+  MaverickPublicSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: Public Security Group
+      GroupDescription: Public Security Group
+      VpcId: !Ref MaverickVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp # ssh
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp # http
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp # https
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+
+  # EC2 Public Elastic IP
+  MaverickPublicEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      InstanceId: !Ref MaverickPublicInstance
+      Domain: !Ref MaverickVPC
+
+  # EC2 Public Instance
+  MaverickPublicInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-07d9b9ddc6cd8dd30
+      InstanceType: t2.micro
+      KeyName: # Your Key Here .pem
+      SecurityGroupIds:
+        - !Ref MaverickPublicSecurityGroup
+      SubnetId: !Ref MaverickPublicSubnet
+      UserData:
+        Fn::Base64:
+          Fn::Sub: |
+            #!/bin/bash
+            apt-get update 
+            apt-get upgrade 
+            apt-get install -y curl wget vim net-tools
+            curl -fsSL https://get.docker.com | bash
+            docker swarm init
+            docker service create --name mynginx -p 80:80 nginx
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-public-instance
