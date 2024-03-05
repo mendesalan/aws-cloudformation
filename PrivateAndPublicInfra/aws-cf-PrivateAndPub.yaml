@@ -37,6 +37,54 @@ Resources:
         - Key: Name
           Value: !Sub ${AWS::StackName}-public-subnet
 
+  # Start of Private Configuration
+
+  # Private Subnet
+  MaverickPrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.2.0/24
+      VpcId: !Ref MaverickVPC
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-private-subnet
+
+  # Elastic IP for NAT Gateway
+  NATGatewayElasticIp:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: MaverickVPC
+
+  # NAT Gateway
+  MaverickNATGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NATGatewayElasticIp.AllocationId
+      SubnetId: !Ref MaverickPublicSubnet
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-nat-gateway
+
+  # Private Route Table
+  MaverickPrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MaverickVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-private-route-table
+
+  # Private Route connecting to NAT Gateway and Private Route Table
+  MaverickPrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref MaverickPrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref MaverickNATGateway
+
+  # End of Private Configuration
+
   # Public Route Table
   MaverickPublicRouteTable:
     Type: AWS::EC2::RouteTable
