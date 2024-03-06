@@ -10,4 +10,4 @@ https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-functio
 
 Use scp command to copy your .pem key from your machine to the the public instance so you can access via ssh the private instance.
 
-scp -i "key.pem" key.pem ubuntu@dns.compute-1.amazonaws.com:
+scp -i "key.pem" key.pem ubuntu@address:
